@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Suburb Information</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
+    h2, h3 { margin: 0 0 12px; }
+    .pill { display: inline-block; background: #f3f6fb; border: 1px solid #dbe4f3; padding: 4px 8px; border-radius: 999px; margin-right: 8px; }
+    .placeholder { color: #666; font-style: italic; }
+    .chart { width: 100%; height: 260px; border: 1px dashed #ccc; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #777; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+    .list { margin: 0; padding-left: 18px; }
+  </style>
+</head>
+<body>
+  <h2>Suburb information</h2>
+  <div class="meta">
+    <span class="pill" id="pill-suburb">Suburb: —</span>
+    <span class="pill" id="pill-file">GeoJSON: —</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Annual average price by property type</h3>
+      <div class="chart" id="type-chart">Chart placeholder (House / Unit / Land)</div>
+    </div>
+
+    <div class="card">
+      <h3>Average sale price increase</h3>
+      <div id="avg-increase" class="placeholder">—</div>
+    </div>
+
+    <div class="card">
+      <h3>Major features of interest</h3>
+      <ul class="list" id="features">
+        <li class="placeholder">Local schools — placeholder</li>
+        <li class="placeholder">Shopping centres — placeholder</li>
+        <li class="placeholder">Hospitals and police — placeholder</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Review of area</h3>
+      <div class="placeholder">Community vibe, amenities, transport — placeholder</div>
+    </div>
+
+    <div class="card">
+      <h3>BOCSAR / criminal info</h3>
+      <div class="placeholder">Crime rates and trends — placeholder</div>
+    </div>
+
+    <div class="card">
+      <h3>Rent vs ownership rates</h3>
+      <div class="placeholder">Ownership vs rental composition — placeholder</div>
+    </div>
+
+    <div class="card">
+      <h3>Major events (fires, arson attacks, etc.)</h3>
+      <div class="placeholder">Event history and impact — placeholder</div>
+    </div>
+
+    <div class="card">
+      <h3>Diagnostics</h3>
+      <div id="diag"></div>
+    </div>
+  </div>
+
+  <script>
+    // Query params: suburb (required), file (optional)
+    const params = new URLSearchParams(location.search);
+    const suburbParam = params.get('suburb');
+    const fileParam = params.get('file'); // optional override
+
+    document.getElementById('pill-suburb').textContent = `Suburb: ${suburbParam || '—'}`;
+
+    function filePathForSuburb(name) {
+      if (!name) return null;
+      // Example path — adjust to your setup
+      return `/data/suburbs/${encodeURIComponent(name)}.geojson`;
+    }
+
+    const suburbFile = fileParam || filePathForSuburb(suburbParam);
+    document.getElementById('pill-file').textContent = `GeoJSON: ${suburbFile || '—'}`;
+
+    const diag = document.getElementById('diag');
+    function log(msg) {
+      const div = document.createElement('div');
+      div.textContent = msg;
+      diag.appendChild(div);
+    }
+
+    async function loadSuburbGeoJSON(url) {
+      if (!url) {
+        log('No GeoJSON file path provided.');
+        return null;
+      }
+      log(`Fetching: ${url}`);
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } catch (err) {
+        log(`Fetch error: ${err.message}`);
+        return null;
+      }
+    }
+
+    // Derive annual averages by type: returns { year: { house: avg, unit: avg, land: avg } }
+    function computeAnnualAverages(features) {
+      const buckets = {}; // {year: { house: {sum, count}, unit: {...}, land: {...} }}
+      for (const f of features) {
+        const p = f.properties || {};
+        const sales = Array.isArray(p.sales) ? p.sales : [];
+        const type = (p.type || p.property_type || '').toLowerCase(); // 'house' | 'unit' | 'land'
+        for (const s of sales) {
+          const d = new Date(s.date);
+          const year = Number.isFinite(d.getFullYear()) ? d.getFullYear() : null;
+          const price = Number(s.price);
+          if (!year || !Number.isFinite(price)) continue;
+          if (!buckets[year]) buckets[year] = { house: {sum:0,count:0}, unit: {sum:0,count:0}, land: {sum:0,count:0} };
+          const slot = (type.includes('house') ? 'house' :
+                        type.includes('unit') ? 'unit' :
+                        type.includes('land') ? 'land' : null);
+          if (!slot) continue;
+          buckets[year][slot].sum += price;
+          buckets[year][slot].count += 1;
+        }
+      }
+      const result = {};
+      for (const year of Object.keys(buckets).sort((a,b)=>a-b)) {
+        const b = buckets[year];
+        result[year] = {
+          house: b.house.count ? b.house.sum / b.house.count : null,
+          unit:  b.unit.count  ? b.unit.sum  / b.unit.count  : null,
+          land:  b.land.count  ? b.land.sum  / b.land.count  : null
+        };
+      }
+      return result;
+    }
+
+    // Compute average increase (simple CAGR placeholder using first/last year house/unit/land averages)
+    function computeAvgIncrease(annualAvg) {
+      const years = Object.keys(annualAvg).map(Number).sort((a,b)=>a-b);
+      if (years.length < 2) return '—';
+      const first = years[0], last = years[years.length-1];
+      const keys = ['house','unit','land'];
+      const lines = [];
+      for (const k of keys) {
+        const v0 = annualAvg[first][k], v1 = annualAvg[last][k];
+        if (v0 && v1) {
+          const n = last - first;
+          const cagr = Math.pow(v1 / v0, 1 / n) - 1;
+          lines.push(`${k}: ${(cagr*100).toFixed(1)}% p.a.`);
+        } else {
+          lines.push(`${k}: —`);
+        }
+      }
+      return lines.join(' | ');
+    }
+
+    function renderTypeChart(annualAvg) {
+      const chart = document.getElementById('type-chart');
+      const years = Object.keys(annualAvg).map(Number).sort((a,b)=>a-b);
+      if (!years.length) {
+        chart.textContent = 'Chart placeholder — no data';
+        return;
+      }
+      // Minimal inline SVG chart (no external libs)
+      const width = chart.clientWidth - 16;
+      const height = chart.clientHeight - 16;
+      const pad = 24;
+      const colors = { house: '#1f77b4', unit: '#ff7f0e', land: '#2ca02c' };
+      const series = ['house','unit','land'];
+      const values = series.flatMap(k => years.map(y => annualAvg[y][k]).filter(v => v));
+      const vMin = Math.min(...values);
+      const vMax = Math.max(...values);
+      function xPos(i) { return pad + (i / (years.length - 1)) * (width - 2*pad); }
+      function yPos(v) { return height - pad - ((v - vMin) / (vMax - vMin)) * (height - 2*pad); }
+      const paths = series.map(k => {
+        const pts = years
+          .map((y,i) => { const v = annualAvg[y][k]; return v ? `${i===0?'M':'L'}${xPos(i)},${yPos(v)}` : null; })
+          .filter(Boolean)
+          .join(' ');
+        return pts ? `<path d="${pts}" fill="none" stroke="${colors[k]}" stroke-width="2" />` : '';
+      }).join('');
+      const legend = series.map(k => `<span style="color:${colors[k]};margin-right:12px;">■ ${k}</span>`).join('');
+      chart.innerHTML = `
+        <div style="position:absolute; top:8px; left:8px; font-size:12px;">${legend}</div>
+        <svg width="${width}" height="${height}">
+          <rect x="0" y="0" width="${width}" height="${height}" fill="none" />
+          ${paths}
+        </svg>
+      `;
+    }
+
+    (async function init() {
+      const gj = await loadSuburbGeoJSON(suburbFile);
+      if (!gj) return;
+      const features = gj.features || [];
+      const annualAvg = computeAnnualAverages(features);
+      renderTypeChart(annualAvg);
+      document.getElementById('avg-increase').textContent = computeAvgIncrease(annualAvg);
+    })();
+  </script>
+</body>
+</html>

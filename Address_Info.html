@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Address Information</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
+    h2, h3 { margin: 0 0 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+    .pill { display: inline-block; background: #f3f6fb; border: 1px solid #dbe4f3; padding: 4px 8px; border-radius: 999px; margin-right: 8px; }
+    .placeholder { color: #666; font-style: italic; }
+    .meta { margin: 8px 0 16px; color: #444; }
+    .warning { color: #a94442; background: #f9e2e2; border: 1px solid #e1b6b6; padding: 8px; border-radius: 6px; }
+    .list { margin: 0; padding-left: 18px; }
+    .chart { width: 100%; height: 220px; border: 1px dashed #ccc; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #777; }
+  </style>
+</head>
+<body>
+  <h2>Address information</h2>
+  <div class="meta">
+    <span class="pill" id="pill-coords">Lat/Lng: —</span>
+    <span class="pill" id="pill-suburb">Suburb: —</span>
+    <span class="pill" id="pill-file">GeoJSON: —</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Property summary</h3>
+      <div id="property-summary">
+        <div class="placeholder">Waiting for GeoJSON lookup...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Sale history</h3>
+      <table id="sale-history">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Price</th>
+            <th>Type</th>
+            <th>Land size</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="4" class="placeholder">No records yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Nearby facilities</h3>
+      <ul class="list" id="nearby-facilities">
+        <li class="placeholder">Distance to local hospital — placeholder</li>
+        <li class="placeholder">Local primary school — placeholder</li>
+        <li class="placeholder">Local high school — placeholder</li>
+        <li class="placeholder">Commute mode (drive vs public transport) — placeholder</li>
+        <li class="placeholder">Nearby activities — placeholder</li>
+        <li class="placeholder">Google reviews of nearby area — placeholder</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Macro event impactors</h3>
+      <ul class="list" id="macro-impactors">
+        <li class="placeholder">Interest rates trend impact — placeholder</li>
+        <li class="placeholder">GFC-style shock resilience — placeholder</li>
+        <li class="placeholder">Other macro events (pandemics, policy changes) — placeholder</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Price trend (property)</h3>
+      <div class="chart" id="price-chart">Chart placeholder</div>
+    </div>
+
+    <div class="card">
+      <h3>Diagnostics</h3>
+      <div id="diag"></div>
+    </div>
+  </div>
+
+  <script>
+    // Query params: lat, lng, suburb (optional), file (optional)
+    const params = new URLSearchParams(location.search);
+    const lat = params.get('lat');
+    const lng = params.get('lng');
+    const suburbParam = params.get('suburb'); // optional
+    const fileParam = params.get('file');     // optional override
+
+    // Basic UI population
+    document.getElementById('pill-coords').textContent = `Lat/Lng: ${lat || '—'}, ${lng || '—'}`;
+    document.getElementById('pill-suburb').textContent = `Suburb: ${suburbParam || '—'}`;
+
+    // Derive GeoJSON file path by suburb (customize to your folder structure)
+    function filePathForSuburb(name) {
+      if (!name) return null;
+      // Example: /data/suburbs/{Suburb}.geojson — adjust to your setup
+      return `/data/suburbs/${encodeURIComponent(name)}.geojson`;
+    }
+
+    const suburbFile = fileParam || filePathForSuburb(suburbParam);
+    document.getElementById('pill-file').textContent = `GeoJSON: ${suburbFile || '—'}`;
+
+    const diag = document.getElementById('diag');
+    function log(msg) {
+      const div = document.createElement('div');
+      div.textContent = msg;
+      diag.appendChild(div);
+    }
+
+    // Helper: find matching property feature by lat/lng proximity
+    function findPropertyFeature(features, lat, lng) {
+      const thresh = 0.0005; // ~50m tolerance
+      for (const f of features) {
+        try {
+          const c = f.geometry.type === 'Point'
+            ? f.geometry.coordinates
+            : (f.geometry.type === 'Polygon'
+                ? f.geometry.coordinates[0][0]
+                : null);
+          if (!c) continue;
+          const flng = c[0], flat = c[1];
+          if (Math.abs(flat - lat) < thresh && Math.abs(flng - lng) < thresh) {
+            return f;
+          }
+        } catch { /* ignore */ }
+      }
+      return null;
+    }
+
+    // Render property summary
+    function renderPropertySummary(feature) {
+      const div = document.getElementById('property-summary');
+      if (!feature) {
+        div.innerHTML = '<div class="warning">No matching property found in suburb file.</div>';
+        return;
+      }
+      const p = feature.properties || {};
+      const type = p.type || p.property_type || 'Unknown';
+      const landSize = p.land_size || p.land_area || '—';
+      const addr = p.address || 'Selected address';
+      div.innerHTML = `
+        <strong>Address:</strong> ${addr}<br>
+        <strong>Property type:</strong> ${type}<br>
+        <strong>Land size:</strong> ${landSize}
+      `;
+    }
+
+    // Render sale history table rows
+    function renderSaleHistory(feature) {
+      const tbody = document.querySelector('#sale-history tbody');
+      tbody.innerHTML = '';
+      const sales = (feature?.properties?.sales) || []; // expect array of {date, price, type, land_size}
+      if (!sales.length) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="4" class="placeholder">No sale history found</td>`;
+        tbody.appendChild(tr);
+        return;
+      }
+      for (const s of sales) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${s.date || '—'}</td>
+          <td>${s.price ? `$${Number(s.price).toLocaleString()}` : '—'}</td>
+          <td>${s.type || '—'}</td>
+          <td>${s.land_size || '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    // Simple placeholder chart message
+    function renderPriceChart(feature) {
+      const chart = document.getElementById('price-chart');
+      const sales = (feature?.properties?.sales) || [];
+      if (!sales.length) {
+        chart.textContent = 'Chart placeholder — no data';
+      } else {
+        chart.textContent = 'Chart placeholder — price trend (property)';
+      }
+    }
+
+    async function loadSuburbGeoJSON(url) {
+      if (!url) {
+        log('No GeoJSON file path provided.');
+        return null;
+      }
+      log(`Fetching: ${url}`);
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const gj = await res.json();
+        return gj;
+      } catch (err) {
+        log(`Fetch error: ${err.message}`);
+        return null;
+      }
+    }
+
+    (async function init() {
+      const gj = await loadSuburbGeoJSON(suburbFile);
+      if (!gj) return;
+
+      const features = gj.features || [];
+      const feature = (lat && lng) ? findPropertyFeature(features, Number(lat), Number(lng)) : null;
+
+      renderPropertySummary(feature);
+      renderSaleHistory(feature);
+      renderPriceChart(feature);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Search by Address or Suburb</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Map container */
+    #map { height: 600px; }
+
+    /* Search controls styling */
+    #searchControls {
+      position: absolute;
+      top: 70px;
+      left: 10px;
+      z-index: 9999; /* ensures it sits above the map */
+      background: rgba(255,255,255,0.95);
+      padding: 10px 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    #searchControls label {
+      display: block;
+      margin-top: 6px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    #searchControls select {
+      width: 100%;
+      margin-top: 2px;
+      font-size: 13px;
+      padding: 2px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="map.html">Search by Address</a>
+      <a href="criteria.html">Search by Criteria</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Search controls block -->
+    <div id="searchControls">
+      <label for="searchMode">Search mode:</label>
+      <select id="searchMode">
+        <option value="address" selected>Address</option>
+        <option value="suburb">Suburb</option>
+      </select>
+
+      <label for="searchType">Search type:</label>
+      <select id="searchType">
+        <option value="">Default</option>
+        <option value="suburb">Suburb</option>
+        <option value="neighbourhood">Neighbourhood</option>
+        <option value="locality">Locality</option>
+        <option value="town">Town</option>
+        <option value="village">Village</option>
+      </select>
+    </div>
+
+    <!-- Map container -->
+    <div id="map"></div>
+  </main>
+
+  <footer>
+    <p><a href="terms.html">Legal Terms</a> | <a href="contact.html">Contact Us</a></p>
+  </footer>
+
+  <!-- Leaflet and geocoder scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
