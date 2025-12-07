@@ -119,7 +119,7 @@ async function getSuburbStats(suburbName) {
   const base = normalizeKey(suburbName);
   console.log("Looking up stats for:", suburbName, "→ normalized:", base);
 
-  const rows = await loadCSV("https://username.github.io/lifecosts/suburb_growth_summary2.csv");
+  const rows = await loadCSV("https://lifecosts.github.io/suburb_growth_summary2.csv");
   const stats = { house: null, land: null, unit: null };
 
   for (let i = 0; i < rows.length; i++) {
