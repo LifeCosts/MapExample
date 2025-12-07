@@ -2,17 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Leaflet demo</title>
+  <title>Property Search Portal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Leaflet CSS (no integrity attribute) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="map"></div>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="map.html">Search by Address</a>
+      <a href="criteria.html">Search by Criteria</a>
+    </nav>
+  </header>
 
-  <!-- Leaflet JS (no integrity attribute) -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="main.js"></script>
+  <main>
+    <h1>Welcome to the Property Search Portal</h1>
+    <p>Please choose what you would like to do:</p>
+    <div class="options">
+      <a class="option-btn" href="map.html">🔍 Search by Address</a>
+      <a class="option-btn" href="criteria.html">📋 Search by Criteria</a>
+    </div>
+  </main>
+
+  <footer>
+    <p><a href="terms.html">Legal Terms</a> | <a href="contact.html">Contact Us</a></p>
+  </footer>
 </body>
 </html>
